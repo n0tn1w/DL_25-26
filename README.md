@@ -19,7 +19,7 @@ Please follow the instructions in one of the following two folders:
 ## 🕒 Sessions with Simo
 
 1. :white_check_mark: 17.02, Tuesday, 7:15 pm, 107
-2. 25.02, Wednesday, 7:15 pm, 326
+2. :white_check_mark: 25.02, Wednesday, 7:15 pm, 326
 3. **02.03, Monday, 7:15 pm, 107**
 4. 04.03, Wednesday, 7:15 pm, 326
 5. 11.03, Wednesday, 7:15 pm, 326

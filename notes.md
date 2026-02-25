@@ -43,6 +43,16 @@
     - [Random generators](#random-generators)
   - [Code formatting](#code-formatting)
   - [Behavior-driven development](#behavior-driven-development)
+- [Week 02 - Implementing Gradient Descent](#week-02---implementing-gradient-descent)
+  - [Backpropagation](#backpropagation)
+  - [Topological sort](#topological-sort)
+  - [Activation functions](#activation-functions)
+  - [Python OOP (Magic Methods)](#python-oop-magic-methods)
+    - [Initialization and Construction](#initialization-and-construction)
+    - [Arithmetic operators](#arithmetic-operators)
+    - [String Magic Methods](#string-magic-methods)
+    - [Comparison magic methods](#comparison-magic-methods)
+  - [Introducing `dl_lib`](#introducing-dl_lib)
 
 # Week 01 - Hello, Deep Learning. Implementing a Multilayer Perceptron
 
@@ -1548,3 +1558,501 @@ class TestDoSomethignWithAnInteger(unittest.TestCase):
 class TestMySecondMethod(unittest.TestCase):
     ...
 ```
+
+# Week 02 - Implementing Gradient Descent
+
+## Backpropagation
+
+<details>
+
+<summary>How do we translate the expression "slope of a line"?</summary>
+
+Наклон на линия.
+
+</details>
+
+<details>
+
+<summary>How would you define the slope of a line?</summary>
+
+- slope (also gradient) = a number that describes the direction of the line on a plane.
+- often denoted by the letter $m$.
+
+![w02_slope.png](assets/w02_slope.png "w02_slope.png")
+
+- calculated as the ratio of the vertical change to the horizontal change ("rise over run") between two distinct points on the line:
+  - a 45° rising line has slope $m = 1$ (tan(45°) = 1)
+  - a 45° falling line has slope $m = -1$ (tan(-45°) = -1)
+
+</details>
+
+<details>
+
+<summary>What is the sign of the slope of an increasing line going up from left to right?</summary>
+
+Positive ($m > 0$).
+
+</details>
+
+<details>
+
+<summary>What is the sign of the slope of a decreasing line going down from left to right?</summary>
+
+Negative ($m < 0$).
+
+</details>
+
+<details>
+
+<summary>What is the slope of a horizontal line?</summary>
+
+$0$.
+
+</details>
+
+<details>
+
+<summary>What is the slope of a vertical line?</summary>
+
+A vertical line would lead to a $0$ in the denominator, so the slope can be regarder as `undefined` or `infinite`.
+
+</details>
+
+<details>
+
+<summary>What is the steepness of a line?</summary>
+
+- The absolute value of its slope:
+  - greater absolute value indicates a steeper line.
+
+</details>
+
+<details>
+
+<summary>Suppose a line runs through two points: P = (1, 2) and Q = (13, 8). What is its slope, direction and level of steepness?</summary>
+
+$dy = 8 - 2 = 6$
+$dx = 13 - 1 = 12$
+$m = \frac{dy}{dx} = \frac{6}{12} = \frac{1}{2} = 0.5$
+
+Direction: $0.5 > 0$ => up
+Steepness: $0 < 0.5 < 1$ => not very steep (less steep than a 45° rising line)
+
+</details>
+
+<details>
+
+<summary>Suppose a line runs through two points: P = (4, 15) and Q = (3, 21). What is its slope, direction and level of steepness?</summary>
+
+$dy = 21 - 15 = 6$
+$dx = 3 - 4 = -1$
+$m = \frac{dy}{dx} = \frac{6}{-1} = -6$
+
+Direction: $-6 < 0$ => down
+Steepness: $|-6| = 6 > 1$ => steep
+
+</details>
+
+<details>
+
+<summary>What is the link between "slope" and "derivative"?</summary>
+
+- For non-linear functions, the rate of change varies along the curve.
+- The derivative of the function at a point
+$=$ The slope of the line, tangent to the curve at the point
+$=$ The rate of change of the function at that point
+
+![w02_slop_der_connection.png](assets/w02_slop_der_connection.png "w02_slop_der_connection.png")
+
+Formula for slope:
+
+$m = \frac{dy}{dx}$
+
+Formula for derivative:
+
+${\displaystyle L=\lim _{eps\to 0}{\frac {f(x+eps)-f(x)}{eps}}}$
+
+it's the same formula as for the slope, only here the change in $x$ is infinitesimally small.
+
+For example, let $f$ be the squaring function: ${\displaystyle f(x)=x^{2}}$. Then the derivative is:
+
+$$\frac{f(x+eps) - f(x)}{eps} = \frac{(x+eps)^2 - x^2}{eps} = \frac{x^2 + 2xeps + eps^2 - x^2}{eps} = 2x + eps$$
+
+The division in the last step is valid as long as $eps \neq 0$. The closer $eps$ is to $0$, the closer this expression becomes to the value $2x$. The limit exists, and for every input $x$ the limit is $2x$. So, the derivative of the squaring function is the doubling function: ${\displaystyle f'(x)=2x}$.
+
+</details>
+
+<details>
+
+<summary>So, what added value does the derivative have?</summary>
+
+**It tells us by how much the value of a function increases when we *increase* its input by a tiny bit.**
+
+Do we remember the below diagram?
+
+![w01_multiplier_loss_viz.png](assets/w01_multiplier_loss_viz.png "w01_multiplier_loss_viz.png")
+
+</details>
+
+<details>
+
+<summary>What are the rules of derivatives that you can recall - write out the rule and an example of it?</summary>
+
+Recall the rules of computation [here](https://en.wikipedia.org/wiki/Derivative#Rules_of_computation).
+
+Also, recall the chain rule [here](https://en.wikipedia.org/wiki/Chain_rule).
+
+<details>
+
+<summary>What is the derivative of sin(6x)?</summary>
+
+$\frac{d}{dx}[\sin(6x)] = \cos(6x) * \frac{d}{dx}[6x] = \cos(6x) * 6 = 6\cos(6x)$
+
+See how the above corresponds with this definition:
+
+$${\displaystyle {\frac {dz}{dx}}={\frac {dz}{dy}}\cdot {\frac {dy}{dx}},}$$
+
+$z = \sin$
+$y = 6x$
+
+In other words, $x$ influences the value of $\sin$ through the value of $y=6x$.
+
+</details>
+
+</details>
+
+<details>
+
+<summary>What is backpropagation then?</summary>
+
+Backpropagation is the iterative process of calculating derivatives of the loss function with respect to every `value` node leading up to it.
+
+Rules of thumb:
+
+```text
+Start from the final child (the last node in topological order).
++ => copy gradient to parents:
+    parent1.grad = current.grad
+    parent2.grad = current.grad
+* => multiply value of other parent with current gradient:
+    parent1.grad = parent2.value * current.grad
+    parent2.grad = parent1.value * current.grad
+```
+
+Let's say we have the following computational graph and we have to see how tiny changes in the weights and biases influence the value of `L`:
+
+![w02_03_result](assets/w02_03_result.svg?raw=true "w02_03_result.svg")
+
+<details>
+
+<summary>Reveal answer</summary>
+
+![w02_calculations](assets/w02_calculations.svg?raw=true "w02_calculations.svg")
+
+</details>
+
+</details>
+
+## Topological sort
+
+<details>
+
+<summary>What is topological ordering?</summary>
+
+Topological ordering of a directed graph is a linear ordering of its vertices such that for every directed edge $(u,v)$ from vertex $u$ to vertex $v$, $u$ comes before $v$ in the ordering.
+
+</details>
+
+<details>
+
+<summary>Can you give an example of a task that is solved using topological order?</summary>
+
+- The canonical application of topological sorting is in scheduling a sequence of jobs or tasks based on their dependencies.
+- Importing packages creates a DAG (direct acyclic graph).
+- Planning in software engineering often creates an implicit DAG: you cannot complete one task before another.
+
+</details>
+
+<details>
+
+<summary>Can there be multiple valid topological orderings?</summary>
+
+Absolutely:
+
+![w02_multi_top_sort.png](assets/w02_multi_top_sort.png "w02_multi_top_sort.png")
+
+For the above image both `4->5->3->1` and `5->4->3->1` are valid topological orders.
+
+</details>
+
+What is the topological order of the nodes in the following graph:
+
+![w02_top_sort_example.png](assets/w02_top_sort_example.png "w02_top_sort_example.png")
+
+<details>
+
+<summary>Reveal answer</summary>
+
+`0->3->1->4->2`
+
+- Since vertices `0` and `3` do not have any incoming edges from any other vertex, they appear first in the topological ordering;
+- Vertex `1` depends only on vertex `0`, so it comes after `0`;
+- Vertex `4` depends only on vertex `3`, placing it after `3`;
+- Finally, vertex `2` depends on both vertices `1` and `3`, so it appears after both of them in the ordering.
+
+</details>
+
+<details>
+
+<summary>How is topological order connected to backpropagation?</summary>
+
+We'd first have to sort the weights and biases topologically to do brackpropagation.
+
+</details>
+
+<details>
+
+<summary>What are the steps to implement this algorithm programmatically?</summary>
+
+The easiest way to do this is via depth-first search (DFS):
+
+The key idea of the DFS approach is to explore all dependent nodes of a vertex **before** the vertex itself is added to the ordering:
+
+1. Initialize an empty list `visited` list to track visited nodes and an empty list `stack` to store the result.
+2. Iterate through each vertex in the graph. If a vertex has not been visited, recursively call the (DFS) function on it.
+3. Inside the DFS function for a vertex $u$:
+   1. Mark $u$ as visited.
+   2. Recursively call the DFS function for all unvisited neighbors (adjacent vertices) of $u$.
+   3. **After** all neighbors and their descendants have been fully explored, push the current vertex $u$ onto the stack. This ensures a node is pushed only after all its dependencies are processed.
+4. After the DFS completes for all nodes, the stack will contain the vertices in **reverse** topological order. Pop the elements from the stack one by one (or reverse the list) to get the final topological ordering.
+
+We can also do this via breadth-first search (BFS) using the so-called `Kahn's Algorithm`. The two ways are explained in more detail in [Wikipedia](https://en.wikipedia.org/wiki/Topological_sorting).
+
+</details>
+
+## Activation functions
+
+<details>
+
+<summary>What problem do activation functions solve?</summary>
+
+- Composition/multiplication of matrices results in a new matrix (as the matrix is a linear operator).
+- A matrix describes a linear transformation, i.e. it transforms space in a linear fashion.
+- That means that if we just stack layers of neurons on top of each other, in the end we'd get only a linear transformation that can be encoded using a single matrix.
+  - This would prevent us from being able to create non-linear decision boundaries.
+
+See below how matrix multiplication produces a single matrix:
+
+![w02_matrix_composition.gif](./assets/w02_matrix_composition.gif "w02_matrix_composition.gif")
+
+We can see that all lines still remain lines (they don't get curved) after the transformation:
+
+![w02_matrix_composition_sequence.svg](./assets/w02_matrix_composition_sequence.svg "w02_matrix_composition_sequence.svg")
+
+Here's the visualization expressed in numbers:
+
+![w02_matrix_composition_sequence_numeric.png](./assets/w02_matrix_composition_sequence_numeric.png "w02_matrix_composition_sequence_numeric.png")
+
+**Activation functions are functions that are non-linear**. They are used to make it possible for our network to learn non-linear transformations by augmenting the outputs of each matrix multiplication in a non-linear way.
+
+Instead of keeping every line a line, they curve them leading up to a more complex / "smarter" model that understand linear and non-linear boundaries:
+
+![w02_non_linear.jpg](./assets/w02_non_linear.jpg "w02_non_linear.jpg")
+
+</details>
+
+<details>
+
+<summary>Which activation function did we learn about in the previous session?</summary>
+
+Sigmoid!
+
+$${\displaystyle \sigma(x)={\frac {1}{1+e^{-x}}}}$$
+
+> **Note:** Last week we used the sigmoid just because we wanted to have outputs that in the range $(0, 1)$ so we can interpret the results as probabilities. This is still a valid argument, but also note that the sigmoid is a non-linear function (because when we graph it we don't get a line) so we have one more reason for using exactly it.
+
+</details>
+
+<details>
+
+<summary>What other activation functions do you know?</summary>
+
+There are a lot of activation functions - some of them are graphed below:
+
+Don't try to remember the graphs/formulas for them by heart, but remember the overall idea behind them as different architectures will use different loss functions.
+
+![w02_activation_fns_grpahs.png](assets/w02_activation_fns_grpahs.png "w02_activation_fns_grpahs.png")
+
+</details>
+
+<details>
+
+<summary>Hmm - since there are many activation functions how do we choose which ones to use?</summary>
+
+While there's no single rule that fits every model, there are strong practical guidelines that have been established over the years:
+
+- The default choice for most deep networks is the **Rectified Linear Unit (ReLU)** (see the diagram above).
+
+  Use it unless you have a reason not to as it's computationally cheap and avoids gradient problems that could occur with sigmoid and the like. We'll discuss these in the next sessions.
+
+  Next week we'll discuss ReLU in more details.
+
+- When you need outputs only in the range $(0, 1)$, use the **Sigmoid**. This is the most common choice when we're at the last node of a binary classification problem.
+- When you need negative outputs or symmetric activations, you can use the **hyperbolic tangent**. It returns values in the interval $(-1, 1)$.
+
+Let's investigate the properties of the last two in this session.
+
+</details>
+
+<details>
+
+<summary>What is the formula for the hyperbolic tangent?</summary>
+
+$${\displaystyle \tanh x={\frac {\sinh x}{\cosh x}}={\frac {e^{x}-e^{-x}}{e^{x}+e^{-x}}}={\frac {e^{2x}-1}{e^{2x}+1}}.}$$
+
+</details>
+
+<details>
+
+<summary>If we plot the function for the input in the range [-10, 10] what graph would we get?</summary>
+
+![w02_tanh](assets/w02_tanh.png "w02_tanh.png")
+
+</details>
+
+<details>
+
+<summary>What is the main difference between it and the sigmoid?</summary>
+
+The output range of the tanh function is $(-1, 1)$ and presents a similar behavior with the `sigmoid` function. Thus, the main difference is the fact that the `tanh` function pushes the input values to $1$ and $-1$ instead of $1$ and $0$. In other words, we can also say that the `tanh` function is a shifted and stretched version of the `sigmoid`.
+
+</details>
+
+Because the hyperbolic tangent is more stretched from the `sigmoid`, the behavior of their gradients is also different.
+
+Look at the formula for the sigmoid above.
+
+<details>
+
+<summary>What is the derivative of the sigmoid with respect to its input?</summary>
+
+$$
+\begin{aligned}
+\sigma(x) &= \frac{1}{1+e^{-x}} = (1+e^{-x})^{-1} \\
+\frac{d}{dx}\sigma(x) &= - (1+e^{-x})^{-2}\,\frac{d}{dx}(1+e^{-x}) \\
+&= - (1+e^{-x})^{-2}\,(-e^{-x}) \\
+&= \frac{e^{-x}}{(1+e^{-x})^{2}} \\
+&= \frac{1}{1+e^{-x}} \cdot \frac{e^{-x}}{1+e^{-x}} \\
+&= \sigma(x)\bigl(1-\sigma(x)\bigr)
+\end{aligned}
+$$
+
+So, we get:
+
+$${\frac {d}{dx}}\sigma(x) = \sigma(x) (1 - \sigma(x))$$
+
+</details>
+
+Great! We see that the derivative of the sigmoid is expressed using the sigmoid! This is convenient when doing backpropagation.
+
+<details>
+
+<summary>We saw the formula for the hyperbolic tangent above - what is its derivative with respect to its input?</summary>
+
+$$
+\begin{aligned}
+\tanh(x) &= \frac{e^{x}-e^{-x}}{e^{x}+e^{-x}} \\
+\frac{d}{dx}\tanh(x) &= \frac{(e^{x}+e^{-x})^2 - (e^{x}-e^{-x})^2}{(e^{x}+e^{-x})^2} \\
+&= \frac{4}{(e^{x}+e^{-x})^2} \\
+&= \operatorname{sech}^2(x) \\
+&= 1 - \tanh^2(x)
+\end{aligned}
+$$
+
+So, we get:
+
+$${\frac {d}{dx}}\tanh(x) = 1 - \tanh^{2}(x)$$
+
+</details>
+
+Ok - perfect! We see the same characteristic of using the function to define its derivative. Of course, this is not always the case.
+
+<details>
+
+<summary>Knowing the functions of the derivatives, how would the derivative of the sigmoid look like if we overlay it with the derivative of the hyperbolic tangent - what would the main difference be?</summary>
+
+![w02_tanh_sigmoid_gradients](assets/w02_tanh_sigmoid_gradients.png "w02_tanh_sigmoid_gradients.png")
+
+Using the `tanh` activation function results in higher gradient values during training and higher updates in the weights of the network. So, if we want strong gradients and big steps, we should use the `tanh` activation function.
+
+Another difference is that the output of `tanh` is symmetric around zero, which could sometimes lead to faster convergence.
+
+</details>
+
+## Python OOP (Magic Methods)
+
+### Initialization and Construction
+
+- `__init__`: To get called by the `__new__` method. This is the `constructor` function for Python classes.
+- `__new__`: To get called in an object’s instantiation (**do not use unless no other option**).
+- `__del__`: It is the destructor (**do not use unless no other option**).
+
+### Arithmetic operators
+
+- `__add__(self, other)`: Implements behavior for the `+` operator (addition).
+- `__sub__(self, other)`: Implements behavior for the `–` operator (subtraction).
+- `__mul__(self, other)`: Implements behavior for the `*` operator (multiplication).
+- `__floordiv__(self, other)`: Implements behavior for the `//` operator (floor division).
+- `__truediv__(self, other)`: Implements behavior for the `/` operator (true division).
+- `__mod__(self, other)`: Implements behavior for the `%` operator (modulus).
+- `__pow__(self, other)`: Implements behavior for the `**` operator (exponentiation).
+- `__and__(self, other)`: Implements behavior for the `&` operator (bitwise and).
+- `__or__(self, other)`: Implements behavior for the `|` operator (bitwise or).
+- `__xor__(self, other)`: Implements behavior for the `^` operator (bitwise xor).
+- `__neg__(self)`: Implements behavior for negation using the `–` operator.
+
+### String Magic Methods
+
+- `__str__(self)`: Defines behavior for when `str()` is called on an instance of your class.
+- `__repr__(self)`: To get called by built-int `repr()` method to return a machine readable representation of a type. **This method gets called when an object is passed to the function `print`.**
+
+### Comparison magic methods
+
+- `__eq__(self, other)`: Defines behavior for the equality operator, `==`.
+- `__ne__(self, other)`: Defines behavior for the inequality operator, `!=`.
+- `__lt__(self, other)`: Defines behavior for the less-than operator, `<`.
+- `__gt__(self, other)`: Defines behavior for the greater-than operator, `>`.
+- `__le__(self, other)`: Defines behavior for the less-than-or-equal-to operator, `<=`.
+- `__ge__(self, other)`: Defines behavior for the greater-than-or-equal-to operator, `>=`.
+
+## Introducing `dl_lib`
+
+From this session onwards we'll start developing our oun deep learning framework - `dl_lib`! The first tools there will be implementations of activation functions. Here's how we'll organize it:
+
+1. Assuming you've cloned the GitHub repo, create a folder, named `dl_lib` in the root directory:
+
+Currently, you should have this file structure:
+
+```console
+assets\
+DATA\
+Week_00 - Hello, Python\
+Week_01 - Hello, Deep Learning. Implementing a Multilayer Perceptron\
+...
+```
+
+After creating the folder, you'll have this:
+
+```console
+assets\
+DATA\
+Week_00 - Hello, Python\
+Week_01 - Hello, Deep Learning. Implementing a Multilayer Perceptron\
+...
+dl_lib\           # <---------- Notice this - you should create this folder
+```
+
+Inside `dl_lib` we'll start creating modules (`.py` scripts) and putting those modules in packages (collections of modules). **Always place an empty file `__init__.py` in every package** - this will tell the Python interpreter that this is a package, not just a directory! This means that in `dl_lib` you'll also place an empty file `__init__.py`.
+
+2. Place an empty file `__init__.py` inside `dl_lib`.
+3. When you're done with the tasks, submit the folder `dl_lib` as well.

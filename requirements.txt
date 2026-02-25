@@ -16,10 +16,11 @@ datasets
 accelerate
 evaluate
 rouge_score
+graphviz
+openpyxl
 # Development
 mypy
 isort
 yapf
 coverage
 pytest
-openpyxl
